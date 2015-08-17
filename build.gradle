@@ -1,0 +1,94 @@
+allprojects {
+    apply plugin: 'idea'
+}
+
+subprojects {
+    apply plugin: 'java'
+
+    task generateSources(type: GenerateSources)
+
+    compileJava {
+        dependsOn generateSources
+    }
+
+    clean {
+        delete generateSources.outputDir
+    }
+
+    sourceSets {
+        main {
+            java {
+                srcDirs += generateSources.outputDir
+            }
+        }
+    }
+
+    idea.module {
+        sourceDirs += generateSources.outputDir
+    }
+}
+
+class GenerateSources extends DefaultTask {
+    @InputDirectory
+    File inputDir = project.file('src/main/resources')
+
+    @OutputDirectory
+    File outputDir = project.file('src/main/generated')
+
+    @TaskAction
+    void execute(IncrementalTaskInputs inputs) {
+        logger.quiet inputs.incremental ? "CHANGED inputs considered out of date" : "ALL inputs considered out of date"
+
+        if(!inputs.incremental) {
+            project.delete(outputDir.listFiles())
+        }
+
+        inputs.outOfDate { InputFileDetails change ->
+            logger.quiet "out of date: ${change.file.name}"
+            generateJavaFile(change.file)
+        }
+
+        inputs.removed { InputFileDetails change ->
+            logger.quiet "removed: ${change.file.name}"
+            File generatedJavaFile = new File(createPackageDir(), "${createGeneratedJavaClassName(change.file)}.java")
+
+            if(generatedJavaFile.exists()) {
+                generatedJavaFile.delete()
+            }
+        }
+    }
+
+    String createGeneratedJavaClassName(File inputFile) {
+        "Generated${inputFile.name - '.txt'}"
+    }
+
+    File createPackageDir() {
+        File packageDir = new File(outputDir, 'org/company')
+
+        if(!packageDir.isDirectory() && !packageDir.mkdirs()) {
+            throw new GradleException("Unable to create directory '$packageDir.canonicalPath'.")
+        }
+
+        packageDir
+    }
+
+    void generateJavaFile(File resourceFile) {
+        File packageDir = createPackageDir()
+
+        String generatedJavaClassName = createGeneratedJavaClassName(resourceFile)
+        File generatedJavaFile = new File(packageDir, "${generatedJavaClassName}.java")
+
+        if(!generatedJavaFile.exists()) {
+            generatedJavaFile.createNewFile()
+        }
+
+        String resourceFileContent = resourceFile.text.trim()
+        generatedJavaFile.text = """package org.company;
+
+public class ${generatedJavaClassName} {
+    public void doSomething() {
+        System.out.println("Content: " + $resourceFileContent);
+    }
+}"""
+    }
+}

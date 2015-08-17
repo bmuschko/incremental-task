@@ -1,0 +1,39 @@
+task generateSubprojects {
+    ext {
+        subProjectCount = 10
+        resourceFileCount = 10
+    }
+
+    doLast {
+        File settingsFile = file('settings.gradle')
+
+        if(!settingsFile.exists()) {
+            settingsFile.createNewFile()
+        }
+
+        (1..subProjectCount).each { projectNo ->
+            String subProjectName = "proj$projectNo"
+            File subProjectDir = file(subProjectName)
+            settingsFile << "include '$subProjectName'\n"
+            
+            if(!subProjectDir.isDirectory() && !subProjectDir.mkdirs()) {
+                throw new GradleException("Unable to create directory '$subProjectDir.canonicalPath'.")
+            }
+
+            File resourcesDir = new File(subProjectDir, 'src/main/resources')
+
+            if(!resourcesDir.isDirectory() && !resourcesDir.mkdirs()) {
+                throw new GradleException("Unable to create directory '$resourcesDir.canonicalPath'.")
+            }
+
+            (1..resourceFileCount).each { textFileNo ->
+                File resourceFile = new File(resourcesDir, "${textFileNo}.txt")
+                
+                if(!resourceFile.exists()) {
+                    resourceFile.createNewFile()
+                    resourceFile << textFileNo
+                }
+            }
+        }
+    }
+}
